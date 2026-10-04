@@ -2,6 +2,8 @@
 
 A browser-based programmatic queue execution game designed to teach sequential logic, state management, and loop automation.
 
+[Live Demo](https://cranesweeper.vercel.app)
+
 ## Overview
 
 Iteration Station is a single-file application requiring no external dependencies or build tools. 
