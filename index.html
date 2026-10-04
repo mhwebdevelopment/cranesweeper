@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ITERATION STATION: Crane Logic</title>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+    :root {
+        --bg-space: #07090f;
+        --panel-bg: rgba(15, 23, 42, 0.8);
+        --panel-border: #1e293b;
+        --grid-line: rgba(56, 189, 248, 0.1);
+        
+        --accent-blue: #0ea5e9;
+        --accent-blue-glow: rgba(14, 165, 233, 0.4);
+        --accent-green: #10b981;
+        --accent-green-glow: rgba(16, 185, 129, 0.4);
+        --accent-red: #ef4444;
+        --accent-amber: #f59e0b;
+        --accent-purple: #8b5cf6;
+        
+        --text-main: #f8fafc;
+        --text-muted: #94a3b8;
+        
+        --cell-size: min(6.5vh, 6.5vw);
+        --board-size: calc(var(--cell-size) * 8);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+        margin: 0;
+        padding: 2vh 2vw;
+        height: 100vh;
+        width: 100vw;
+        background: radial-gradient(circle at 50% 0%, #1e1b4b 0%, var(--bg-space) 60%);
+        color: var(--text-main);
+        font-family: 'Inter', sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        overflow: hidden;
+    }
+
+    h1 {
+        font-family: 'Fira Code', monospace;
+        font-weight: 800;
+        font-size: min(3vh, 2rem);
+        letter-spacing: 4px;
+        color: #fff;
+        text-shadow: 0 0 15px var(--accent-blue-glow);
+        margin: 0 0 2vh 0;
+        text-transform: uppercase;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+
+    h1::before, h1::after {
+        content: '';
+        display: block;
+        width: 40px;
+        height: 2px;
+        background: var(--accent-blue);
+        box-shadow: 0 0 10px var(--accent-blue);
+    }
+
+    #game-interface {
+        display: flex;
+        gap: 2vw;
+        width: 100%;
+        max-width: 1600px;
+        height: 88vh;
+    }
+
+    .glass-panel {
+        background: var(--panel-bg);
+        backdrop-filter: blur(12px);
+        border: 1px solid var(--panel-border);
+        border-radius: 12px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    }
+
+    /* LEFT: BOARD SECTION */
+    #board-section {
+        flex: 1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 2rem;
+        position: relative;
+    }
+
+    #board-container {
+        position: relative;
+        width: var(--board-size);
+        height: var(--board-size);
+        background: #020617;
+        border: 2px solid var(--accent-blue);
+        border-radius: 8px;
+        box-shadow: 0 0 30px var(--accent-blue-glow), inset 0 0 20px rgba(0,0,0,0.8);
+    }
+
+    #grid-overlay {
+        position: absolute;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        display: grid;
+        grid-template-columns: repeat(8, 1fr);
+        grid-template-rows: repeat(8, 1fr);
+        pointer-events: none;
+    }
+
+    .grid-cell {
+        border-right: 1px solid var(--grid-line);
+        border-bottom: 1px solid var(--grid-line);
+    }
+
+    .entity {
+        position: absolute;
+        width: var(--cell-size);
+        height: var(--cell-size);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-size: calc(var(--cell-size) * 0.5);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .wall {
+        background: repeating-linear-gradient(45deg, #334155, #334155 10px, #1e293b 10px, #1e293b 20px);
+        border: 1px solid #0f172a;
+        border-radius: 4px;
+        box-shadow: inset 0 0 10px rgba(0,0,0,0.8);
+    }
+
+    .container-item {
+        background: linear-gradient(135deg, var(--accent-amber), #b45309);
+        border: 2px solid #fff;
+        border-radius: 6px;
+        box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
+    }
+    .container-item::after { content: '📦'; }
+
+    .train {
+        background: linear-gradient(135deg, var(--accent-red), #991b1b);
+        border: 2px solid #fca5a5;
+        border-radius: 6px;
+        box-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
+    }
+    .train::after { content: '🚂'; }
+
+    .preview-dot {
+        position: absolute;
+        width: 20%;
+        height: 20%;
+        background: var(--accent-blue);
+        border-radius: 50%;
+        box-shadow: 0 0 10px var(--accent-blue);
+        top: 40%; left: 40%;
+        opacity: 0.6;
+        pointer-events: none;
+    }
+
+    #player-crane {
+        z-index: 50;
+        filter: drop-shadow(0 10px 15px rgba(0,0,0,0.5));
+    }
+
+    .crane-body {
+        width: 70%;
+        height: 70%;
+        background: linear-gradient(135deg, #e2e8f0, #94a3b8);
+        border-radius: 50%;
+        border: 3px solid #fff;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        position: relative;
+        box-shadow: 0 0 20px rgba(255,255,255,0.2);
+    }
+    
+    .crane-body::after {
+        content: '';
+        position: absolute;
+        top: -15%;
+        width: 4px;
+        height: 30%;
+        background: var(--accent-green);
+        box-shadow: 0 0 10px var(--accent-green);
+    }
+
+    .cargo-badge {
+        position: absolute;
+        bottom: -5px; right: -5px;
+        background: var(--accent-amber);
+        color: #000;
+        border-radius: 50%;
+        width: 24px; height: 24px;
+        font-family: 'Fira Code', monospace;
+        font-size: 14px;
+        font-weight: 800;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        border: 2px solid #fff;
+        box-shadow: 0 0 10px var(--accent-amber);
+        z-index: 60;
+    }
+
+    /* RIGHT: CONTROLS & LOGIC */
+    #logic-section {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 1.5vh;
+        max-width: 650px;
+    }
+
+    .telemetry-bar {
+        display: flex;
+        justify-content: space-between;
+        padding: 15px 25px;
+        font-family: 'Fira Code', monospace;
+        font-size: 1.1rem;
+        border-bottom: 2px solid var(--panel-border);
+    }
+
+    .stat { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+    .stat-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+    .stat-val { font-weight: 700; color: #fff; text-shadow: 0 0 10px rgba(255,255,255,0.3); }
+    #stat-highscore { color: var(--accent-green); text-shadow: 0 0 10px var(--accent-green-glow); }
+
+    .control-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        padding: 0 15px;
+    }
+    .full-width { grid-column: span 2; }
+
+    button {
+        background: rgba(30, 41, 59, 0.8);
+        color: var(--text-main);
+        border: 1px solid var(--panel-border);
+        padding: 12px;
+        font-family: 'Fira Code', monospace;
+        font-size: 0.9rem;
+        font-weight: 600;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s;
+        text-transform: uppercase;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    button:hover { background: #334155; border-color: #475569; transform: translateY(-2px); }
+    button:active { transform: translateY(0); }
+
+    .btn-hotkey { color: var(--accent-blue); font-size: 0.75rem; opacity: 0.8; }
+
+    .btn-run { background: var(--accent-green); border-color: #059669; color: #000; box-shadow: 0 0 15px var(--accent-green-glow); }
+    .btn-run:hover { background: #34d399; }
+    .btn-drop { background: var(--accent-purple); border-color: #7c3aed; }
+    .btn-drop:hover { background: #a78bfa; }
+    .btn-loop { background: rgba(14, 165, 233, 0.2); border-color: var(--accent-blue); color: var(--accent-blue); }
+    .btn-loop:hover { background: var(--accent-blue); color: #000; }
+
+    .panel-footer {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        padding: 0 15px;
+    }
+
+    .btn-clear { border-color: var(--accent-red); color: var(--accent-red); justify-content: center; }
+    .btn-clear:hover { background: var(--accent-red); color: #fff; }
+    .btn-regen { border-color: var(--accent-amber); color: var(--accent-amber); justify-content: center; }
+    .btn-regen:hover { background: var(--accent-amber); color: #000; }
+
+    .toggles {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 15px;
+        font-size: 0.8rem;
+        color: var(--text-muted);
+    }
+    
+    .toggle-label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+    input[type="checkbox"] { accent-color: var(--accent-blue); width: 16px; height: 16px; cursor: pointer; }
+
+    .data-split {
+        display: flex;
+        gap: 15px;
+        flex: 1;
+        padding: 0 15px 15px 15px;
+        min-height: 0; 
+    }
+
+    .data-pane {
+        flex: 1;
+        background: #020617;
+        border: 1px solid var(--panel-border);
+        border-radius: 8px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .pane-header {
+        background: #0f172a;
+        padding: 8px 12px;
+        font-family: 'Fira Code', monospace;
+        font-size: 0.75rem;
+        color: var(--accent-blue);
+        border-bottom: 1px solid var(--panel-border);
+        display: flex;
+        justify-content: space-between;
+    }
+
+    .scroll-area {
+        flex: 1;
+        overflow-y: auto;
+        padding: 12px;
+    }
+
+    #queue-container {
+        display: flex;
+        flex-wrap: wrap;
+        align-content: flex-start;
+        gap: 8px;
+    }
+
+    .queue-item {
+        background: rgba(14, 165, 233, 0.1);
+        border: 1px solid var(--accent-blue);
+        color: var(--text-main);
+        padding: 6px 12px;
+        border-radius: 4px;
+        font-family: 'Fira Code', monospace;
+        font-size: 0.8rem;
+        cursor: pointer;
+        user-select: none;
+        transition: all 0.15s;
+    }
+
+    .queue-item:hover { background: rgba(14, 165, 233, 0.3); }
+    .queue-item.selected { background: var(--accent-amber); color: #000; border-color: #fff; transform: scale(1.05); }
+    .queue-item.active { background: var(--accent-green); color: #000; border-color: #fff; box-shadow: 0 0 15px var(--accent-green-glow); }
+    .queue-item.error { background: var(--accent-red); color: #fff; border-color: #fff; }
+
+    #json-render {
+        margin: 0;
+        font-family: 'Fira Code', monospace;
+        font-size: 0.75rem;
+        line-height: 1.5;
+        color: #a78bfa;
+    }
+    .json-key { color: #38bdf8; }
+    .json-string { color: #34d399; }
+    .json-number { color: #fbbf24; }
+
+    #sys-log {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(220, 38, 38, 0.9);
+        color: #fff;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-family: 'Fira Code', monospace;
+        font-weight: bold;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.5), 0 0 20px rgba(220, 38, 38, 0.5);
+        z-index: 100;
+        opacity: 1;
+        transition: opacity 0.3s, transform 0.3s;
+    }
+    #sys-log.hidden { opacity: 0; pointer-events: none; transform: translate(-50%, 20px); }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+</style>
+</head>
+<body>
+
+<h1><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg> Iteration Station</h1>
+
+<div id="game-interface">
+    
+    <div id="board-section" class="glass-panel">
+        <div id="board-container">
+            <div id="grid-overlay"></div>
+            <div id="entities-layer"></div>
+            
+            <div id="player-crane" class="entity">
+                <div class="crane-body"></div>
+            </div>
+        </div>
+        <div id="sys-log" class="hidden"></div>
+    </div>
+
+    <div id="logic-section" class="glass-panel">
+        
+        <div class="telemetry-bar">
+            <div class="stat"><span class="stat-label">Moves Executed</span><span class="stat-val" id="stat-moves">0</span></div>
+            <div class="stat"><span class="stat-label">Cargo Secured</span><span class="stat-val" id="stat-cargo">0</span></div>
+            <div class="stat"><span class="stat-label">Efficiency Record</span><span class="stat-val" id="stat-highscore">0</span></div>
+        </div>
+
+        <div class="control-grid">
+            <button onclick="addAction('left')">Rotate Left <span class="btn-hotkey">[←]</span></button>
+            <button onclick="addAction('right')">Rotate Right <span class="btn-hotkey">[→]</span></button>
+            <button onclick="addAction('forward')">Translate FWD <span class="btn-hotkey">[↑]</span></button>
+            <button onclick="addAction('grab')">Engage Grapple <span class="btn-hotkey">[G]</span></button>
+            <button onclick="addAction('drop')" class="btn-drop full-width">Release Payload <span class="btn-hotkey">[D]</span></button>
+            <button class="btn-loop" onclick="loopSelected(2)">Loop Selected x2</button>
+            <button class="btn-loop" onclick="loopSelected(3)">Loop Selected x3</button>
+        </div>
+
+        <div class="toggles">
+            <span>Left-Click: Select | Right-Click: Delete</span>
+            <label class="toggle-label">
+                <input type="checkbox" id="preview-toggle" onchange="calculatePreview()" checked> Render Trajectory
+            </label>
+        </div>
+
+        <div class="control-grid" style="padding-bottom: 10px;">
+            <button class="btn-run full-width" onclick="executeQueue()">Initialize Execution Sequence</button>
+        </div>
+
+        <div class="data-split">
+            <div class="data-pane">
+                <div class="pane-header"><span>// COMMAND_QUEUE</span><span id="queue-count">0 ops</span></div>
+                <div class="scroll-area" id="queue-container"></div>
+            </div>
+            <div class="data-pane">
+                <div class="pane-header"><span>// SCHEMA_OUT</span><span>.json</span></div>
+                <div class="scroll-area">
+                    <pre id="json-render">{}</pre>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel-footer">
+            <button class="btn-clear" onclick="clearQueue()">Purge Queue</button>
+            <button class="btn-regen" onclick="initLevel()">Regenerate Topography</button>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    const BOARD_SIZE = 8;
+    const DIRS = [[-1, 0], [0, 1], [1, 0], [0, -1]];
+    
+    let board = [];
+    let initialBoardState = []; 
+    let player = { r: 0, c: 0, dir: 1, loaded: 0 };
+    let initialPlayerState = {};
+    
+    let queue = [];
+    let selectedIndices = new Set();
+    let isExecuting = false;
+    let previewCells = new Set();
+    let moveCount = 0;
+    let highScore = 0;
+
+    const entitiesLayer = document.getElementById('entities-layer');
+    const playerEl = document.getElementById('player-crane');
+    const queueEl = document.getElementById('queue-container');
+    const jsonRenderEl = document.getElementById('json-render');
+    const sysLogEl = document.getElementById('sys-log');
+    const previewToggle = document.getElementById('preview-toggle');
+    
+    const statMovesEl = document.getElementById('stat-moves');
+    const statCargoEl = document.getElementById('stat-cargo');
+    const statHighScoreEl = document.getElementById('stat-highscore');
+    const queueCountEl = document.getElementById('queue-count');
+
+    function buildGridOverlay() {
+        const overlay = document.getElementById('grid-overlay');
+        overlay.innerHTML = '';
+        for (let i = 0; i < BOARD_SIZE * BOARD_SIZE; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'grid-cell';
+            overlay.appendChild(cell);
+        }
+    }
+
+    function cloneBoard(b) {
+        return b.map(row => [...row]);
+    }
+
+    function initLevel() {
+        buildGridOverlay();
+        board = Array.from({length: BOARD_SIZE}, () => Array(BOARD_SIZE).fill(0));
+        player = { r: 0, c: 0, dir: 1, loaded: 0 };
+        moveCount = 0;
+        updateStats();
+        
+        for (let i = 0; i < 14; i++) {
+            let r = Math.floor(Math.random() * BOARD_SIZE);
+            let c = Math.floor(Math.random() * BOARD_SIZE);
+            if (r === 0 && c === 0) continue;
+            board[r][c] = Math.random() > 0.4 ? 2 : 1; 
+        }
+        
+        let placed = false;
+        while (!placed) {
+            let r = Math.floor(Math.random() * BOARD_SIZE);
+            let c = Math.floor(Math.random() * BOARD_SIZE);
+            if (r > 4 && c > 4 && board[r][c] !== 1) {
+                board[r][c] = 3;
+                placed = true;
+            }
+        }
+        
+        initialBoardState = cloneBoard(board);
+        initialPlayerState = { ...player };
+        
+        clearQueue();
+        hideError();
+        renderStaticEntities();
+        updatePlayerVisuals();
+    }
+
+    function restoreInitialState() {
+        board = cloneBoard(initialBoardState);
+        player = { ...initialPlayerState };
+        moveCount = 0;
+        updateStats();
+        renderStaticEntities();
+        updatePlayerVisuals();
+    }
+
+    function updateStats() {
+        statMovesEl.textContent = moveCount;
+        statCargoEl.textContent = player.loaded;
+        statHighScoreEl.textContent = highScore;
+    }
+
+    function calculatePreview() {
+        previewCells.clear();
+        if (!previewToggle.checked || isExecuting || queue.length === 0) {
+            renderStaticEntities();
+            return;
+        }
+
+        let simR = player.r;
+        let simC = player.c;
+        let simDir = player.dir;
+
+        for (let action of queue) {
+            if (action === 'left') simDir = (simDir + 3) % 4;
+            else if (action === 'right') simDir = (simDir + 1) % 4;
+            else if (action === 'forward') {
+                let nr = simR + DIRS[simDir][0];
+                let nc = simC + DIRS[simDir][1];
+                if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) break;
+                if (initialBoardState[nr][nc] === 1) break;
+                simR = nr;
+                simC = nc;
+                previewCells.add(`${simR},${simC}`);
+            }
+        }
+        renderStaticEntities();
+    }
+
+    function renderStaticEntities() {
+        entitiesLayer.innerHTML = '';
+        for (let r = 0; r < BOARD_SIZE; r++) {
+            for (let c = 0; c < BOARD_SIZE; c++) {
+                
+                if (board[r][c] > 0) {
+                    const el = document.createElement('div');
+                    el.className = 'entity';
+                    el.style.transform = `translate(calc(${c} * var(--cell-size)), calc(${r} * var(--cell-size)))`;
+                    
+                    if (board[r][c] === 1) el.classList.add('wall');
+                    else if (board[r][c] === 2) el.classList.add('container-item');
+                    else if (board[r][c] === 3) el.classList.add('train');
+                    
+                    entitiesLayer.appendChild(el);
+                }
+
+                if (previewCells.has(`${r},${c}`)) {
+                    const dot = document.createElement('div');
+                    dot.className = 'entity';
+                    dot.style.transform = `translate(calc(${c} * var(--cell-size)), calc(${r} * var(--cell-size)))`;
+                    const innerDot = document.createElement('div');
+                    innerDot.className = 'preview-dot';
+                    dot.appendChild(innerDot);
+                    entitiesLayer.appendChild(dot);
+                }
+            }
+        }
+    }
+
+    function updatePlayerVisuals() {
+        playerEl.style.transform = `translate(calc(${player.c} * var(--cell-size)), calc(${player.r} * var(--cell-size)))`;
+        
+        const rotationMap = [180, -90, 0, 90]; 
+        const craneBody = playerEl.querySelector('.crane-body');
+        craneBody.style.transform = `rotate(${rotationMap[player.dir]}deg)`;
+
+        let badge = playerEl.querySelector('.cargo-badge');
+        if (player.loaded > 0) {
+            if (!badge) {
+                badge = document.createElement('div');
+                badge.className = 'cargo-badge';
+                playerEl.appendChild(badge);
+            }
+            badge.textContent = player.loaded;
+        } else if (badge) {
+            badge.remove();
+        }
+        updateStats();
+    }
+
+    function syntaxHighlight(json) {
+        if (typeof json != 'string') json = JSON.stringify(json, undefined, 2);
+        json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+            let cls = 'json-number';
+            if (/^"/.test(match)) {
+                if (/:$/.test(match)) cls = 'json-key';
+                else cls = 'json-string';
+            }
+            return '<span class="' + cls + '">' + match + '</span>';
+        });
+    }
+
+    function renderData() {
+        queueEl.innerHTML = queue.map((a, i) => 
+            `<div class="queue-item ${selectedIndices.has(i) ? 'selected' : ''}" 
+                  id="q-${i}" 
+                  onclick="toggleSelect(${i})" 
+                  oncontextmenu="deleteItem(${i}); return false;">${a}</div>`
+        ).join('');
+        
+        queueCountEl.textContent = `${queue.length} ops`;
+        
+        const schema = {
+            sys_id: "CRANE_OP_01",
+            length: queue.length,
+            sequence: queue
+        };
+        jsonRenderEl.innerHTML = syntaxHighlight(schema);
+    }
+
+    function addAction(action) {
+        if (isExecuting) return;
+        queue.push(action);
+        renderData();
+        calculatePreview();
+    }
+
+    function toggleSelect(index) {
+        if (isExecuting) return;
+        if (selectedIndices.has(index)) selectedIndices.delete(index);
+        else selectedIndices.add(index);
+        renderData();
+    }
+
+    function deleteItem(index) {
+        if (isExecuting) return;
+        queue.splice(index, 1);
+        selectedIndices.clear();
+        renderData();
+        calculatePreview();
+    }
+
+    function loopSelected(times) {
+        if (isExecuting || selectedIndices.size === 0) return;
+        let sortedSelected = Array.from(selectedIndices).sort((a,b) => a - b);
+        let subQueue = sortedSelected.map(i => queue[i]);
+        let insertPos = sortedSelected[sortedSelected.length - 1] + 1;
+        let additions = [];
+        for (let i = 1; i < times; i++) additions = additions.concat(subQueue);
+        queue.splice(insertPos, 0, ...additions);
+        selectedIndices.clear();
+        renderData();
+        calculatePreview();
+    }
+
+    function clearQueue() {
+        if (isExecuting) return;
+        queue = [];
+        selectedIndices.clear();
+        restoreInitialState();
+        renderData();
+        calculatePreview();
+        hideError();
+    }
+
+    function showError(msg) {
+        sysLogEl.textContent = `FATAL: ${msg}`;
+        sysLogEl.classList.remove('hidden');
+    }
+
+    function hideError() {
+        sysLogEl.classList.add('hidden');
+    }
+
+    async function executeQueue() {
+        if (isExecuting || queue.length === 0) return;
+        isExecuting = true;
+        hideError();
+        previewCells.clear();
+        selectedIndices.clear();
+        restoreInitialState();
+        
+        for (let i = 0; i < queue.length; i++) {
+            let action = queue[i];
+            
+            document.querySelectorAll('.queue-item').forEach(el => el.classList.remove('active'));
+            const currentItem = document.getElementById(`q-${i}`);
+            if (currentItem) {
+                currentItem.classList.add('active');
+                currentItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+
+            let result = await processAction(action);
+            moveCount++;
+            
+            if (result === 'WIN') {
+                let currentScore = Math.max(0, (player.loaded * 1000) - (moveCount * 10));
+                if (currentScore > highScore) highScore = currentScore;
+                updateStats();
+                setTimeout(() => {
+                    sysLogEl.textContent = `SUCCESS // CARGO: ${player.loaded} // SCORE: ${currentScore}`;
+                    sysLogEl.style.background = 'rgba(16, 185, 129, 0.9)';
+                    sysLogEl.style.boxShadow = '0 10px 25px rgba(0,0,0,0.5), 0 0 20px rgba(16, 185, 129, 0.5)';
+                    sysLogEl.classList.remove('hidden');
+                }, 300);
+                break;
+            } else if (!result) {
+                if (currentItem) {
+                    currentItem.classList.remove('active');
+                    currentItem.classList.add('error');
+                }
+                break;
+            }
+
+            await new Promise(res => setTimeout(res, 350));
+        }
+        
+        document.querySelectorAll('.queue-item').forEach(el => el.classList.remove('active'));
+        isExecuting = false;
+        
+        setTimeout(() => {
+            sysLogEl.style.background = '';
+            sysLogEl.style.boxShadow = '';
+        }, 3000);
+    }
+
+    async function processAction(action) {
+        if (action === 'left') { player.dir = (player.dir + 3) % 4; updatePlayerVisuals(); return true; }
+        if (action === 'right') { player.dir = (player.dir + 1) % 4; updatePlayerVisuals(); return true; }
+        
+        let nr = player.r + DIRS[player.dir][0];
+        let nc = player.c + DIRS[player.dir][1];
+
+        if (action === 'forward') {
+            if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) {
+                showError("GANTRY BOUNDARY BREACH");
+                return false;
+            }
+            if (board[nr][nc] === 1) {
+                showError("STRUCTURAL COLLISION");
+                return false;
+            }
+            player.r = nr; 
+            player.c = nc;
+            updatePlayerVisuals();
+            return true;
+        }
+        
+        if (action === 'grab') {
+            if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] === 2) {
+                board[nr][nc] = 0;
+                player.loaded++;
+                renderStaticEntities();
+                updatePlayerVisuals();
+                return true;
+            } else {
+                showError("INVALID TARGET VECTOR");
+                return false;
+            }
+        }
+
+        if (action === 'drop') {
+             if (player.loaded === 0) {
+                 showError("PAYLOAD EMPTY");
+                 return false;
+             }
+             if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] === 3) {
+                 updatePlayerVisuals();
+                 return 'WIN';
+             } else {
+                 showError("UNAUTHORIZED DROP ZONE");
+                 return false;
+             }
+        }
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if (isExecuting) return;
+        switch(e.key) {
+            case 'ArrowUp': e.preventDefault(); addAction('forward'); break;
+            case 'ArrowLeft': e.preventDefault(); addAction('left'); break;
+            case 'ArrowRight': e.preventDefault(); addAction('right'); break;
+            case 'g': case 'G': e.preventDefault(); addAction('grab'); break;
+            case 'd': case 'D': e.preventDefault(); addAction('drop'); break;
+        }
+    });
+
+    initLevel();
+</script>
+</body>
+</html>
